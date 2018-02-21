@@ -53,6 +53,8 @@
 
 /* USER CODE BEGIN Includes */     
 #include "gfx.h"
+#include "stdlib.h"
+#include "math.h"
 /* USER CODE END Includes */
 
 /* Variables -----------------------------------------------------------------*/
@@ -60,6 +62,8 @@ osThreadId defaultTaskHandle;
 osThreadId anotherTaskHandle;
 
 /* USER CODE BEGIN Variables */
+#define PI 3.14159265358979323846
+
 #define SAMPLE_COUNT 200
 
 typedef enum Waveform { // the different possible output
@@ -77,7 +81,7 @@ GHandle   ghBtnTriangle;
 GHandle   ghBtnSquare;
 GHandle   ghBtnSaw;
 GListener gl;
-Waveform output_waveform = OFF;
+Waveform output_waveform = SAW;
 
 int TRIANGLE_TABLE[200] = {
 		0x0,0x1,0x1,0x1,0x2,0x2,0x2,0x3,
@@ -148,6 +152,7 @@ void createButtonSine();
 void createButtonTriangle();
 void createButtonSquare();
 void createButtonSaw();
+int getNextValue(int time);
 /* USER CODE END FunctionPrototypes */
 
 /* Hook prototypes */
@@ -192,7 +197,6 @@ void StartDefaultTask(void const * argument)
   /* USER CODE BEGIN StartDefaultTask */
 	GEvent* pe;
 	gfxInit();
-	//gdispSetOrientation(GDISP_ROTATE_180);
 	uGFXMain();
 	geventListenerInit(&gl);
 	gwinAttachListener(&gl);
@@ -209,6 +213,7 @@ void StartDefaultTask(void const * argument)
 				case GEVENT_GWIN_BUTTON:
 					if (((GEventGWinButton*)pe)->gwin == ghBtnSine) {
 						output_waveform = SINE;
+						//generator.
 					} else if (((GEventGWinButton*)pe)->gwin == ghBtnTriangle) {
 						output_waveform = TRIANGLE;
 					} else if (((GEventGWinButton*)pe)->gwin == ghBtnSquare) {
@@ -235,32 +240,31 @@ void StartAnotherTask(void const * argument)
 	int counter2 = 100;
 	int startX = 5;
 	int startY = 100;
+	int oldX = startX;
+	int oldY = startY;
   /* Infinite loop */
 	for(;;) {
 
 		int endY = startY;
 		int endY2 = startY;
-		switch(output_waveform) {
-			case SINE:
-				endY -= SINE_TABLE[counter];
-				endY2 -= SINE_TABLE[counter2];
-				break;
-			case TRIANGLE:
-				endY -= TRIANGLE_TABLE[counter];
-				endY2 -= TRIANGLE_TABLE[counter2];
-				break;
-			default:
-				endY -= TRIANGLE_TABLE[counter];
-				endY2 -= TRIANGLE_TABLE[counter2];
-		}
 
-		gdispDrawPixel(startX + counter, endY, Blue);
-		gdispDrawPixel(startX + counter2, endY2, White);
+		endY -= getNextValue(counter);
+		endY2 -= getNextValue(counter2);
+
+		//gdispDrawPixel(startX + counter, endY, Blue);
+		gdispDrawLine(startX + counter, endY, oldX, oldY, Blue);
+		//gdispDrawPixel(startX + counter2, endY2, White);
+		gdispDrawLine(startX + counter2, startY - 10, startX + counter2, startY + 10, White);
+
+		oldX = startX + counter;
+		oldY = endY;
 
 		counter++;
 		counter2++;
 		if ((counter % SAMPLE_COUNT) == 0) {
 			counter = 0;
+			oldX = startX;
+			oldY = startY;
 		}
 		if ((counter2 % SAMPLE_COUNT) == 0) {
 					counter2 = 0;
@@ -272,7 +276,34 @@ void StartAnotherTask(void const * argument)
 
 /* USER CODE BEGIN Application */
 
+int getNextValue(int t) {
+	double value = 10;
+	double rad = (PI*t)/180;
+	switch(output_waveform) {
+		case SINE:
+			value = sin((float)(2*PI*rad));
+			break;
+		case TRIANGLE:
+			//value = 1-4*(double)abs(round(t-0.25)-(t-0.25));
+			value = (((t + 20) % 50) < 20)       * (((t + 20) % 50) * 1 / 20.0) +
+					((t % 50) < 20) * 1 * (1 - ((t % 50) / 20.0));
+			break;
+		case SQUARE:
+			//value = signbit(sin(2*PI*rad));
+			value = ((t % 30) < 20) * 1;
+			break;
+		case SAW:
+			//value = 2*(t-(float)floor(t+0.5));
+			value = ((t % 30) < 20) * ((t % 30) * 1 / 20.0);
+			break;
+		default:
+			return 0;
+	}
 
+
+	value *= 10;
+	return (int) round(value);
+}
 
 void createLabel() {
 	GWidgetInit		wi;
@@ -284,11 +315,11 @@ void createLabel() {
 	wi.g.show = TRUE;
 
 	// Apply the label parameters
-	wi.g.y = 10;
 	wi.g.x = 10;
+	wi.g.y = 200;
 	wi.g.width = 100;
 	wi.g.height = 20;
-	wi.text = "Label 1";
+	wi.text = "Value: ";
 
 	// Create the actual label
 	ghLabel1 = gwinLabelCreate(NULL, &wi);
@@ -385,6 +416,7 @@ void uGFXMain() {
 	createButtonTriangle();
 	createButtonSquare();
 	createButtonSaw();
+	//createLabel();
 }
 /* USER CODE END Application */
 
